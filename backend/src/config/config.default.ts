@@ -8,4 +8,7 @@ export default {
   courseDatabase: {
     path: process.env.DATABASE_PATH ?? "./data/course-demo.sqlite",
   },
+  footballDatabase: {
+    path: process.env.FOOTBALL_DATABASE_PATH ?? "./data/football.sqlite",
+  },
 } as MidwayConfig;
