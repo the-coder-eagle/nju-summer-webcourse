@@ -8,6 +8,9 @@ paths:
   /api/health:
     get:
       operationId: getHealth
+      x-spec:
+        file: specs/001-course-catalog.md
+        acceptanceCriteria: [AC-01]
       summary: 检查 API 状态
       responses:
         "200":
@@ -20,6 +23,9 @@ paths:
   /api/courses:
     get:
       operationId: listCourses
+      x-spec:
+        file: specs/001-course-catalog.md
+        acceptanceCriteria: [AC-02]
       summary: 获取课程列表
       responses:
         "200":
@@ -36,6 +42,9 @@ paths:
                       $ref: "#/components/schemas/Course"
     post:
       operationId: createCourse
+      x-spec:
+        file: specs/001-course-catalog.md
+        acceptanceCriteria: [AC-02]
       summary: 创建课程
       requestBody:
         required: true
@@ -62,6 +71,9 @@ paths:
   /api/matches:
     get:
       operationId: listMatches
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-01, AC-02, AC-03]
       summary: 获取赛程列表
       parameters:
         - name: league
@@ -107,6 +119,9 @@ paths:
   /api/matches/{matchId}:
     get:
       operationId: getMatch
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-20, AC-22]
       summary: 获取单场比赛详情
       parameters:
         - name: matchId
@@ -133,6 +148,9 @@ paths:
                 $ref: "#/components/schemas/Error"
     patch:
       operationId: updateMatchStatus
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-25]
       summary: 更新比赛状态（管理员）
       parameters:
         - name: matchId
@@ -185,6 +203,9 @@ paths:
   /api/teams:
     get:
       operationId: listTeams
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-05]
       summary: 获取球队列表
       parameters:
         - name: league
@@ -214,6 +235,9 @@ paths:
   /api/teams/{teamId}:
     get:
       operationId: getTeam
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-23]
       summary: 获取单支球队详情
       parameters:
         - name: teamId
@@ -244,6 +268,9 @@ paths:
   /api/standings:
     get:
       operationId: getStandings
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-06]
       summary: 获取积分榜
       parameters:
         - name: league
@@ -275,6 +302,9 @@ paths:
   /api/bracket:
     get:
       operationId: getBracket
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-07]
       summary: 获取淘汰赛对阵图
       parameters:
         - name: league
@@ -306,6 +336,9 @@ paths:
   /api/predictions:
     post:
       operationId: createPrediction
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-08, AC-09, AC-10]
       summary: 提交比分预测
       requestBody:
         required: true
@@ -348,6 +381,9 @@ paths:
                 $ref: "#/components/schemas/Error"
     get:
       operationId: listMyPredictions
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-24]
       summary: 查看当前用户的预测列表
       responses:
         "200":
@@ -372,6 +408,9 @@ paths:
   /api/predictions/{predictionId}:
     put:
       operationId: updatePrediction
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-11]
       summary: 修改比分预测（仅开赛前）
       parameters:
         - name: predictionId
@@ -426,6 +465,9 @@ paths:
   /api/matches/{matchId}/results:
     post:
       operationId: enterResult
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-12, AC-13]
       summary: 录入比赛结果（管理员）
       parameters:
         - name: matchId
@@ -480,6 +522,9 @@ paths:
   /api/favorites:
     post:
       operationId: addFavorite
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-14]
       summary: 添加收藏
       requestBody:
         required: true
@@ -518,6 +563,9 @@ paths:
                 $ref: "#/components/schemas/Error"
     get:
       operationId: listMyFavorites
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-15]
       summary: 查看当前用户的收藏列表
       responses:
         "200":
@@ -542,6 +590,9 @@ paths:
   /api/favorites/{favoriteId}:
     delete:
       operationId: removeFavorite
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-15]
       summary: 取消收藏
       parameters:
         - name: favoriteId
@@ -583,6 +634,9 @@ paths:
   /api/matches/{matchId}/comments:
     post:
       operationId: createComment
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-16]
       summary: 发表评论
       parameters:
         - name: matchId
@@ -627,6 +681,9 @@ paths:
                 $ref: "#/components/schemas/Error"
     get:
       operationId: listComments
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-17]
       summary: 获取评论列表
       parameters:
         - name: matchId
@@ -663,6 +720,9 @@ paths:
   /api/comments/{commentId}:
     delete:
       operationId: deleteComment
+      x-spec:
+        file: specs/002-football-platform.md
+        acceptanceCriteria: [AC-26]
       summary: 删除评论（作者或管理员）
       parameters:
         - name: commentId

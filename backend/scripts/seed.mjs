@@ -152,6 +152,8 @@ db.exec("DELETE FROM brackets");
 db.exec("DELETE FROM standings");
 db.exec("DELETE FROM matches");
 db.exec("DELETE FROM teams");
+// Reset autoincrement counters so new rows start from ID 1
+db.exec("DELETE FROM sqlite_sequence WHERE name IN ('teams','matches','standings','brackets','predictions','favorites','comments','match_results')");
 
 console.log("Seeding teams...");
 const insertTeam = db.prepare(
