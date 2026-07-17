@@ -14,6 +14,25 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:7001";
 
 // ---- helpers ----
 
+/**
+ * Extract error message from response body, handling both formats:
+ * - New: { error: { code, message }, requestId }
+ * - Old: { error: "message" }
+ */
+function getErrorMessage(body) {
+  if (!body) return "";
+  if (typeof body.error === "object" && body.error !== null) {
+    return body.error.message || "";
+  }
+  if (typeof body.error === "string") {
+    return body.error;
+  }
+  if (typeof body.message === "string") {
+    return body.message;
+  }
+  return "";
+}
+
 async function api(path, opts = {}) {
   const url = `${BACKEND_URL}${path}`;
   const res = await fetch(url, opts);
@@ -95,11 +114,11 @@ test("GET /api/matches/99999 → 404 JSON error (AC-20)", async () => {
   assert.equal(status, 404);
   // Must be JSON with an error field, no stack traces
   assert.equal(typeof body, "object", "body should be a JSON object");
-  assert.ok(typeof body.error === "string", "body.error must be a string");
+  const errMsg = getErrorMessage(body);
+  assert.ok(errMsg.length > 0, "error message must not be empty");
   assert.equal("stack" in body, false, "body must NOT contain stack trace");
-  assert.ok(body.error.length > 0, "error message must not be empty");
   // body should not be HTML
-  assert.ok(!String(body.error).startsWith("<!DOCTYPE"), "body must not be HTML");
+  assert.ok(!errMsg.startsWith("<!DOCTYPE"), "body must not be HTML");
 });
 
 test("GET /api/teams → 200, sorted by name", async () => {
@@ -149,10 +168,8 @@ test("POST /api/predictions no auth → 401 (AC-21)", async () => {
     awayScore: 1,
   });
   assert.equal(status, 401);
-  assert.ok(
-    typeof body.error === "string" || typeof body.message === "string",
-    "should have error message",
-  );
+  const errMsg = getErrorMessage(body);
+  assert.ok(errMsg.length > 0, "should have error message");
 });
 
 test("POST /api/predictions negative score → 400 (AC-10)", async () => {
@@ -163,8 +180,8 @@ test("POST /api/predictions negative score → 400 (AC-10)", async () => {
     { "x-user-id": "api-test-user" },
   );
   assert.equal(status, 400);
-  const errMsg = body.error || body.message || "";
-  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
+  const errMsg = getErrorMessage(body);
+  assert.ok(errMsg.length > 0, "should have error message");
   assert.ok(
     errMsg.includes("homeScore") ||
       errMsg.includes("负") ||
@@ -194,10 +211,8 @@ test("POST /api/favorites duplicate → 409 (AC-14)", async () => {
     { "x-user-id": userId },
   );
   assert.equal(r2.status, 409, `second add should be 409, got ${r2.status} body=${JSON.stringify(r2.body)}`);
-  assert.ok(
-    typeof r2.body.error === "string" || typeof r2.body.message === "string",
-    "should have error message",
-  );
+  const errMsg = getErrorMessage(r2.body);
+  assert.ok(errMsg.length > 0, "should have error message");
 });
 
 test("GET /api/agent/query?q=世界杯有哪些比赛 → 200 with answer", async () => {
@@ -270,7 +285,8 @@ test("GET /api/matches?league=invalid → 400", async () => {
   await checkBackend();
   const { status, body } = await get("/api/matches?league=invalid");
   assert.equal(status, 400);
-  assert.ok(typeof body.error === "string", "should have error message");
+  const errMsg3 = getErrorMessage(body);
+  assert.ok(errMsg3.length > 0, "should have error message");
 });
 
 test("GET /api/matches?league=worldcup → 200, all returned are worldcup", async () => {
@@ -348,7 +364,7 @@ test("POST /api/predictions missing homeScore → 400", async () => {
     { "x-user-id": userId },
   );
   assert.equal(status, 400);
-  const errMsg = body.error || "";
+  const errMsg = getErrorMessage(body);
   assert.ok(errMsg.includes("homeScore"), `error should mention homeScore, got: ${errMsg}`);
 });
 
@@ -388,7 +404,8 @@ test("POST /api/matches/1/comments empty content → 400", async () => {
     { "x-user-id": userId },
   );
   assert.equal(status, 400);
-  assert.ok(typeof body.error === "string", "should have error message");
+  const errMsg4 = getErrorMessage(body);
+  assert.ok(errMsg4.length > 0, "should have error message");
 });
 
 test("GET /api/matches/1/comments → 200, includes pagination", async () => {
@@ -540,4 +557,206 @@ test("POST /api/matches/4/results (admin) → 201", async () => {
   assert.equal(body.data.awayScore, 1);
   assert.ok(typeof body.data.enteredBy === "string");
   assert.ok(typeof body.data.createdAt === "string");
+});
+
+// ================================================================
+// AC-03: Empty match list
+// ================================================================
+
+test("GET /api/matches with no matches (empty DB) → 200 [] (AC-03)", async () => {
+  await checkBackend();
+  // Request a league that has no matches — SPL currently has none seeded
+  const { status, body } = await get("/api/matches?league=spl");
+  assert.equal(status, 200);
+  assert.ok(Array.isArray(body.data), "data should be an array");
+  // SPL has no matches seeded → data should be empty array
+  assert.equal(body.data.length, 0, "SPL should have no matches — empty array expected");
+});
+
+// ================================================================
+// AC-09: Prediction on live/finished match → 400
+// ================================================================
+
+test("POST /api/predictions on live match → 400 (AC-09)", async () => {
+  await checkBackend();
+  // Match 4 was set to live by previous test; try to predict
+  const userId = "api-test-ac09-" + Date.now();
+  const { status, body } = await post(
+    "/api/predictions",
+    { matchId: 4, homeScore: 1, awayScore: 1 },
+    { "x-user-id": userId },
+  );
+  assert.equal(status, 400);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(
+    typeof errMsg === "string" && errMsg.length > 0,
+    "should have error message",
+  );
+  assert.ok(
+    errMsg.includes("已开始") || errMsg.includes("已结束") || errMsg.includes("无法") || errMsg.includes("禁止"),
+    `error should indicate match started/ended, got: ${JSON.stringify(errMsg)}`,
+  );
+});
+
+// ================================================================
+// AC-13: Non-admin enter result → 403
+// ================================================================
+
+test("POST /api/matches/5/results (non-admin) → 403 (AC-13)", async () => {
+  await checkBackend();
+  const { status, body } = await post(
+    "/api/matches/5/results",
+    { homeScore: 1, awayScore: 0 },
+    { "x-user-id": "user123", "x-user-role": "user" },
+  );
+  assert.equal(status, 403);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
+});
+
+// ================================================================
+// AC-24: List my predictions → 200 + nested match
+// ================================================================
+
+test("GET /api/predictions → 200, includes nested match (AC-24)", async () => {
+  await checkBackend();
+  const userId = "api-test-ac24-" + Date.now();
+  // Create a prediction first
+  const create = await post(
+    "/api/predictions",
+    { matchId: 2, homeScore: 0, awayScore: 0 },
+    { "x-user-id": userId },
+  );
+  assert.equal(create.status, 201);
+
+  // List predictions for this user
+  const { status, body } = await getAuth("/api/predictions", {
+    "x-user-id": userId,
+  });
+  assert.equal(status, 200);
+  assert.ok(Array.isArray(body.data), "data should be an array");
+  assert.ok(body.data.length >= 1, "should have at least one prediction");
+  const p = body.data[0];
+  assert.ok(typeof p.id === "number");
+  assert.ok(typeof p.matchId === "number");
+  assert.ok(typeof p.homeScore === "number");
+  assert.ok(typeof p.awayScore === "number");
+  // Verify nested match object
+  assert.ok(typeof p.match === "object", "prediction should include nested match");
+  assert.ok(typeof p.match.id === "number");
+  assert.ok(typeof p.match.homeTeamName === "string");
+  assert.ok(typeof p.match.awayTeamName === "string");
+  assert.ok(typeof p.match.kickoffTime === "string");
+  assert.ok(typeof p.match.status === "string");
+  // Verify only own predictions
+  for (const pred of body.data) {
+    assert.equal(pred.userId, userId, "should only contain own predictions");
+  }
+});
+
+test("GET /api/predictions (empty) → 200 [] (AC-24)", async () => {
+  await checkBackend();
+  const uniqueUserId = "api-test-ac24-empty-" + Date.now();
+  const { status, body } = await getAuth("/api/predictions", {
+    "x-user-id": uniqueUserId,
+  });
+  assert.equal(status, 200);
+  assert.ok(Array.isArray(body.data), "data should be an array");
+  assert.equal(body.data.length, 0, "new user should have no predictions");
+});
+
+test("GET /api/predictions (no auth) → 401 (AC-24)", async () => {
+  await checkBackend();
+  const { status, body } = await get("/api/predictions");
+  assert.equal(status, 401);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0);
+});
+
+// ================================================================
+// AC-25 supplement: Illegal transition & non-admin
+// ================================================================
+
+test("PATCH /api/matches/4 (finished→live, illegal) → 400 (AC-25)", async () => {
+  await checkBackend();
+  // Match 4 is now finished (result was entered); try to go back to live
+  const { status, body } = await patch(
+    "/api/matches/4",
+    { status: "live" },
+    { "x-user-id": "admin", "x-user-role": "admin" },
+  );
+  assert.equal(status, 400);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
+});
+
+test("PATCH /api/matches/5 (non-admin) → 403 (AC-25)", async () => {
+  await checkBackend();
+  const { status, body } = await patch(
+    "/api/matches/5",
+    { status: "live" },
+    { "x-user-id": "user123", "x-user-role": "user" },
+  );
+  assert.equal(status, 403);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
+});
+
+// ================================================================
+// AC-26 supplement: Admin delete, non-author delete, 404
+// ================================================================
+
+test("DELETE /api/comments/:id (admin deletes other's) → 200 (AC-26)", async () => {
+  await checkBackend();
+  const authorId = "api-test-ac26-author-" + Date.now();
+  // Author creates a comment
+  const create = await post(
+    "/api/matches/1/comments",
+    { content: "管理员可删此评论" },
+    { "x-user-id": authorId },
+  );
+  assert.equal(create.status, 201);
+  const commentId = create.body.data.id;
+  // Admin deletes it
+  const { status } = await del(
+    `/api/comments/${commentId}`,
+    { "x-user-id": "admin", "x-user-role": "admin" },
+  );
+  assert.equal(status, 200);
+  // Verify soft-deleted
+  const list = await get("/api/matches/1/comments");
+  const found = list.body.data.find((c) => c.id === commentId);
+  assert.equal(found, undefined, "admin-deleted comment should not appear in list");
+});
+
+test("DELETE /api/comments/:id (non-author, non-admin) → 403 (AC-26)", async () => {
+  await checkBackend();
+  const authorId = "api-test-ac26-author2-" + Date.now();
+  // Author creates a comment
+  const create = await post(
+    "/api/matches/1/comments",
+    { content: "只有作者和管理员能删" },
+    { "x-user-id": authorId },
+  );
+  assert.equal(create.status, 201);
+  const commentId = create.body.data.id;
+  // Another user tries to delete it
+  const { status, body } = await del(
+    `/api/comments/${commentId}`,
+    { "x-user-id": "random-user", "x-user-role": "user" },
+  );
+  assert.equal(status, 403);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
+});
+
+test("DELETE /api/comments/99999 → 404 (AC-26)", async () => {
+  await checkBackend();
+  const { status, body } = await del(
+    "/api/comments/99999",
+    { "x-user-id": "admin", "x-user-role": "admin" },
+  );
+  assert.equal(status, 404);
+  const errMsg = body.error?.message || body.error || "";
+  assert.ok(typeof errMsg === "string" && errMsg.length > 0, "should have error message");
 });
