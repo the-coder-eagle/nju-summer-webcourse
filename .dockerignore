@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.npm/
+.yarn/
+
+# Build outputs
+.next/
+dist/
+out/
+build/
+
+# Database files (mounted as volumes)
+*.sqlite
+*.sqlite3
+*.db
+backend/data/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE and editors
+.vscode/
+.idea/
+.fleet/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs and temp
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Git
+.git/
+.gitignore
+
+# Test artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Documentation (not needed at runtime)
+docs/
+specs/
+*.md
+!README.txt

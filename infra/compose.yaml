@@ -18,9 +18,10 @@ services:
       dockerfile: infra/backend.Dockerfile
     environment:
       BACKEND_PORT: 7001
-      DATABASE_PATH: /app/backend/data/course-demo.sqlite
+      DATABASE_PATH: /app/backend/data/football.sqlite
+      COURSE_DATABASE_PATH: /app/backend/data/course-demo.sqlite
     volumes:
-      - course-data:/app/backend/data
+      - football-data:/app/backend/data
     healthcheck:
       test:
         [
@@ -34,4 +35,4 @@ services:
       retries: 10
 
 volumes:
-  course-data:
+  football-data:
