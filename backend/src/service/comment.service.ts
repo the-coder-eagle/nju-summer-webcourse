@@ -1,11 +1,7 @@
 import { Inject, Provide } from "@midwayjs/core";
 import { FootballDbService } from "./football-db.service";
 import type { Comment, CommentRow } from "../entity/comment.entity";
-
-function toISODate(val: string): string {
-  const iso = val.includes("T") ? val : `${val.replace(" ", "T")}Z`;
-  return new Date(iso).toISOString();
-}
+import { toISODate } from "../utils/date";
 
 function mapComment(row: CommentRow): Comment {
   return {
@@ -77,6 +73,12 @@ export class CommentService {
     this.db.getDb().prepare(
       "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?"
     ).run(commentId);
-    return { data: mapComment({ ...row, deleted_at: new Date().toISOString() }) };
+
+    // Re-fetch the updated row so deleted_at comes from the database
+    const updated = this.db.getDb().prepare(
+      "SELECT * FROM comments WHERE id = ?"
+    ).get(commentId) as unknown as CommentRow;
+
+    return { data: mapComment(updated) };
   }
 }

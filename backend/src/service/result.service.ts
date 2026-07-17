@@ -2,11 +2,7 @@ import { Inject, Provide } from "@midwayjs/core";
 import { FootballDbService } from "./football-db.service";
 import type { MatchResult, MatchResultRow } from "../entity/result.entity";
 import { isValidStatusTransition } from "../entity/match.entity";
-
-function toISODate(val: string): string {
-  const iso = val.includes("T") ? val : `${val.replace(" ", "T")}Z`;
-  return new Date(iso).toISOString();
-}
+import { toISODate } from "../utils/date";
 
 function mapResult(row: MatchResultRow): MatchResult {
   return {

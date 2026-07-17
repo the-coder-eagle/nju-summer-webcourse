@@ -3,6 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Course, CreateCourseInput } from "../interface";
+import { toISODate } from "../utils/date";
 
 type CourseRow = {
   id: number;
@@ -85,6 +86,6 @@ function mapCourse(row: CourseRow): Course {
     id: row.id,
     title: row.title,
     description: row.description,
-    createdAt: new Date(`${row.created_at.replace(" ", "T")}Z`).toISOString(),
+    createdAt: toISODate(row.created_at),
   };
 }

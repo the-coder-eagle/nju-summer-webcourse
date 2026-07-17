@@ -1,11 +1,7 @@
 import { Inject, Provide } from "@midwayjs/core";
 import { FootballDbService } from "./football-db.service";
 import type { Prediction, PredictionRow } from "../entity/prediction.entity";
-
-function toISODate(val: string): string {
-  const iso = val.includes("T") ? val : `${val.replace(" ", "T")}Z`;
-  return new Date(iso).toISOString();
-}
+import { toISODate } from "../utils/date";
 
 function mapPrediction(row: PredictionRow): Prediction {
   return {

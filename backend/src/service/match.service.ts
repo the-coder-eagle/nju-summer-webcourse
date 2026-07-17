@@ -3,12 +3,7 @@ import { FootballDbService } from "./football-db.service";
 import type { Match, MatchRow, MatchStatus } from "../entity/match.entity";
 import type { League } from "../entity/team.entity";
 import { isValidStatusTransition } from "../entity/match.entity";
-
-function toISODate(val: string): string {
-  // SQLite may store dates as "YYYY-MM-DD HH:MM:SS" or ISO 8601 "YYYY-MM-DDTHH:MM:SSZ"
-  const iso = val.includes("T") ? val : `${val.replace(" ", "T")}Z`;
-  return new Date(iso).toISOString();
-}
+import { toISODate } from "../utils/date";
 
 function mapMatch(row: MatchRow): Match {
   return {
