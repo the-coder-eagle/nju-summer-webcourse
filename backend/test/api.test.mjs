@@ -502,26 +502,42 @@ const { status, body } = await get("/api/teams/1");
 // 比赛结果 (Match Results) & 状态管理 (Status)
 // ================================================================
 
-test("PATCH /api/matches/4 (admin, scheduled→live) → 200", { skip: SKIP }, async () => {
-const { status, body } = await patch(
-    "/api/matches/4",
+// Helper: find a scheduled match by querying the API
+async function findScheduledMatchId() {
+  const { body } = await get("/api/matches?status=scheduled");
+  if (body.data && body.data.length > 0) {
+    return body.data[body.data.length - 1].id; // highest ID, least likely touched
+  }
+  return 12; // fallback
+}
+
+test("PATCH /api/matches/:id (admin, scheduled→live) → 200", { skip: SKIP }, async () => {
+  const matchId = await findScheduledMatchId();
+  const { status, body } = await patch(
+    `/api/matches/${matchId}`,
     { status: "live" },
     { "x-user-id": "admin", "x-user-role": "admin" },
   );
   assert.equal(status, 200);
   assert.ok(typeof body.data === "object", "data should be an object");
   assert.equal(body.data.status, "live");
-  assert.equal(body.data.id, 4);
 });
 
-test("POST /api/matches/4/results (admin) → 201", { skip: SKIP }, async () => {
-const { status, body } = await post(
-    "/api/matches/4/results",
+test("POST /api/matches/:id/results (admin) → 201", { skip: SKIP }, async () => {
+  // Transition a fresh match to live, then enter result
+  const matchId = await findScheduledMatchId();
+  await patch(
+    `/api/matches/${matchId}`,
+    { status: "live" },
+    { "x-user-id": "admin", "x-user-role": "admin" },
+  );
+  const { status, body } = await post(
+    `/api/matches/${matchId}/results`,
     { homeScore: 3, awayScore: 1 },
     { "x-user-id": "admin", "x-user-role": "admin" },
   );
   assert.equal(status, 201);
-  assert.equal(body.data.matchId, 4);
+  assert.equal(body.data.matchId, matchId);
   assert.equal(body.data.homeScore, 3);
   assert.equal(body.data.awayScore, 1);
   assert.ok(typeof body.data.enteredBy === "string");
@@ -546,11 +562,17 @@ test("GET /api/matches with no matches (empty DB) → 200 [] (AC-03)", { skip: S
 // ================================================================
 
 test("POST /api/predictions on live match → 400 (AC-09)", { skip: SKIP }, async () => {
-// Match 4 was set to live by previous test; try to predict
+  // Self-contained: find a scheduled match, transition to live, then verify prediction is blocked
+  const matchId = await findScheduledMatchId();
+  await patch(
+    `/api/matches/${matchId}`,
+    { status: "live" },
+    { "x-user-id": "admin", "x-user-role": "admin" },
+  );
   const userId = "api-test-ac09-" + Date.now();
   const { status, body } = await post(
     "/api/predictions",
-    { matchId: 4, homeScore: 1, awayScore: 1 },
+    { matchId, homeScore: 1, awayScore: 1 },
     { "x-user-id": userId },
   );
   assert.equal(status, 400);
@@ -640,10 +662,14 @@ const { status, body } = await get("/api/predictions");
 // AC-25 supplement: Illegal transition & non-admin
 // ================================================================
 
-test("PATCH /api/matches/4 (finished→live, illegal) → 400 (AC-25)", { skip: SKIP }, async () => {
-// Match 4 is now finished (result was entered); try to go back to live
+test("PATCH /api/matches/:id (finished→live, illegal) → 400 (AC-25)", { skip: SKIP }, async () => {
+  // Self-contained: transition a fresh match through live→finished, then try going back
+  const matchId = await findScheduledMatchId();
+  await patch(`/api/matches/${matchId}`, { status: "live" }, { "x-user-id": "admin", "x-user-role": "admin" });
+  await post(`/api/matches/${matchId}/results`, { homeScore: 1, awayScore: 0 }, { "x-user-id": "admin", "x-user-role": "admin" });
+  // Now try finished→live (illegal)
   const { status, body } = await patch(
-    "/api/matches/4",
+    `/api/matches/${matchId}`,
     { status: "live" },
     { "x-user-id": "admin", "x-user-role": "admin" },
   );

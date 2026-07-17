@@ -78,7 +78,7 @@ export class PredictionService {
           id: r.match_id,
           homeTeamName: r.home_team_name,
           awayTeamName: r.away_team_name,
-          kickoffTime: new Date(`${r.kickoff_time.replace(" ", "T")}Z`).toISOString(),
+          kickoffTime: toISODate(r.kickoff_time),
           status: r.match_status,
           league: r.league,
         },

@@ -29,16 +29,31 @@ const DB_PATH =
 
 // ---- helpers ----
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 function db() {
-  return new DatabaseSync(DB_PATH);
+  const d = new DatabaseSync(DB_PATH);
+  d.exec("PRAGMA busy_timeout=10000");
+  return d;
 }
 
-function cleanup() {
-  const d = db();
-  d.exec("DELETE FROM predictions WHERE user_id IN ('concurrency-test-p', 'concurrency-test-p2')");
-  d.exec("DELETE FROM favorites WHERE user_id LIKE 'concurrency-test-f%'");
-  d.close();
+async function cleanup() {
+  for (let retries = 3; retries > 0; retries--) {
+    try {
+      const d = db();
+      d.exec("DELETE FROM predictions WHERE user_id IN ('concurrency-test-p', 'concurrency-test-p2')");
+      d.exec("DELETE FROM favorites WHERE user_id LIKE 'concurrency-test-f%'");
+      d.close();
+      return;
+    } catch (e) {
+      if (retries <= 1) throw e;
+      await sleep(500);
+    }
+  }
 }
+
+// Give backend time to release WAL after seed
+await sleep(1000);
 
 // Register cleanup on process exit
 after(() => {
@@ -68,16 +83,29 @@ const SKIP = !backendAvailable;
 
 // ---- find a 'scheduled' match for testing ----
 
-function findScheduledMatchId() {
-  const d = db();
-  const row = d
-    .prepare("SELECT id FROM matches WHERE status = 'scheduled' LIMIT 1")
-    .get();
-  d.close();
-  if (!row) {
-    throw new Error("No scheduled match found in database");
+async function withDb(fn) {
+  let lastErr;
+  for (let retries = 3; retries > 0; retries--) {
+    const d = db();
+    try {
+      const result = fn(d);
+      d.close();
+      return result;
+    } catch (e) {
+      d.close();
+      lastErr = e;
+      if (retries > 1) await sleep(500);
+    }
   }
-  return row.id;
+  throw lastErr;
+}
+
+async function findScheduledMatchId() {
+  return withDb(d => {
+    const row = d.prepare("SELECT id FROM matches WHERE status = 'scheduled' LIMIT 1").get();
+    if (!row) throw new Error("No scheduled match found in database");
+    return row.id;
+  });
 }
 
 // ---- safe body reader (avoids "body already read" errors) ----
@@ -102,14 +130,12 @@ async function readResponseBody(res) {
 test("AC-18: 并发 POST /api/predictions 不产生重复记录", { skip: SKIP }, async () => {
 
   const userId = "concurrency-test-p";
-  const matchId = findScheduledMatchId();
+  const matchId = await findScheduledMatchId();
 
   // Cleanup any previous test data
-  {
-    const d = db();
+  await withDb(d => {
     d.prepare("DELETE FROM predictions WHERE user_id = ? AND match_id = ?").run(userId, matchId);
-    d.close();
-  }
+  });
 
   console.log(`  [AC-18] Using userId=${userId}, matchId=${matchId}`);
 
@@ -177,11 +203,9 @@ test("AC-18: 并发 POST /api/predictions 不产生重复记录", { skip: SKIP }
   }
 
   // 验证：数据库仅保留一条记录
-  const d = db();
-  const rows = d
+  const rows = await withDb(d => d
     .prepare("SELECT * FROM predictions WHERE user_id = ? AND match_id = ?")
-    .all(userId, matchId);
-  d.close();
+    .all(userId, matchId));
 
   console.log(`  [AC-18] Database rows for (${userId}, ${matchId}):`, rows.length);
   assert.equal(rows.length, 1, `数据库应仅有一条预测记录，实际: ${rows.length}`);
@@ -197,15 +221,13 @@ test("AC-19: 并发 POST /api/favorites 不产生重复记录且无500", { skip:
   const targetId = 1; // Argentina team
 
   // Cleanup any previous test data
-  {
-    const d = db();
+  await withDb(d => {
     d.prepare("DELETE FROM favorites WHERE user_id = ? AND type = ? AND target_id = ?").run(
       userId,
       "team",
       targetId,
     );
-    d.close();
-  }
+  });
 
   console.log(`  [AC-19] Using userId=${userId}, type=team, targetId=${targetId}`);
 
@@ -273,11 +295,9 @@ test("AC-19: 并发 POST /api/favorites 不产生重复记录且无500", { skip:
   }
 
   // 验证：数据库仅保留一条记录
-  const d = db();
-  const rows = d
+  const rows = await withDb(d => d
     .prepare("SELECT * FROM favorites WHERE user_id = ? AND type = ? AND target_id = ?")
-    .all(userId, "team", targetId);
-  d.close();
+    .all(userId, "team", targetId));
 
   console.log(`  [AC-19] Database rows for (${userId}, team, ${targetId}):`, rows.length);
   assert.equal(rows.length, 1, `数据库应仅有一条收藏记录，实际: ${rows.length}`);
@@ -290,18 +310,16 @@ test("AC-19: 并发 POST /api/favorites 不产生重复记录且无500", { skip:
 test("AC-19-补充: 并发收藏 match 类型也无重复", { skip: SKIP }, async () => {
 
   const userId = "concurrency-test-f2";
-  const targetId = findScheduledMatchId();
+  const targetId = await findScheduledMatchId();
 
   // Cleanup
-  {
-    const d = db();
+  await withDb(d => {
     d.prepare("DELETE FROM favorites WHERE user_id = ? AND type = ? AND target_id = ?").run(
       userId,
       "match",
       targetId,
     );
-    d.close();
-  }
+  });
 
   console.log(`  [AC-19-b] Using userId=${userId}, type=match, targetId=${targetId}`);
 
@@ -336,11 +354,9 @@ test("AC-19-补充: 并发收藏 match 类型也无重复", { skip: SKIP }, asyn
   assert.ok(!statuses.includes(500), "不应出现500");
   assert.ok(statuses.includes(201), "至少一个应为201");
 
-  const d = db();
-  const rows = d
+  const rows = await withDb(d => d
     .prepare("SELECT * FROM favorites WHERE user_id = ? AND type = ? AND target_id = ?")
-    .all(userId, "match", targetId);
-  d.close();
+    .all(userId, "match", targetId));
 
   assert.equal(rows.length, 1, `应仅有1条记录，实际: ${rows.length}`);
 });

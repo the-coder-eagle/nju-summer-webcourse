@@ -8,7 +8,7 @@
     "build": "mwtsc --cleanOutDir",
     "start": "cross-env NODE_ENV=production node bootstrap.js",
     "lint": "tsc --noEmit",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/api.test.mjs test/concurrency.test.mjs test/course-input.test.mts"
+    "test": "node scripts/seed.mjs && node -e \"setTimeout(()=>process.exit(0),1500)\" && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/api.test.mjs test/concurrency.test.mjs test/scenarios.test.mjs test/course-input.test.mts"
   },
   "dependencies": {
     "@midwayjs/bootstrap": "^4.2.1",
