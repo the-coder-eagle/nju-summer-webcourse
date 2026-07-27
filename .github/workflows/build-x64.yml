@@ -32,30 +32,10 @@ jobs:
           tags: football-frontend:amd64
           load: true
 
-      - name: Generate demo database
+      - name: Copy demo database
         run: |
-          docker run -d --name seed-tmp football-backend:amd64
-          echo "Waiting for backend to be ready..."
-          ready=0
-          for i in $(seq 1 60); do
-            if docker exec seed-tmp wget -qO- http://localhost:7001/api/health 2>/dev/null | grep -q '"status":"ok"'; then
-              echo "Backend healthy after $((i * 2))s"
-              ready=1
-              break
-            fi
-            echo "  attempt $i/60, waiting..."
-            sleep 2
-          done
-          if [ "$ready" != "1" ]; then
-            echo "ERROR: Backend did not become healthy"
-            docker logs seed-tmp --tail 50
-            exit 1
-          fi
-          # The seed writes to data/ relative to __dirname
-          DB_PATH=$(docker exec seed-tmp find /app -name "football.sqlite" -not -path "*/node_modules/*" 2>/dev/null | head -1)
-          echo "Found DB at: $DB_PATH"
-          docker cp "seed-tmp:${DB_PATH}" football-demo.sqlite
-          docker rm -f seed-tmp
+          cp infra/football-demo.sqlite football-demo.sqlite
+          ls -lh football-demo.sqlite
 
       - name: Package artifact
         run: |
