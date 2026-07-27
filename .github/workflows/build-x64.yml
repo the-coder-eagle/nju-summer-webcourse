@@ -48,8 +48,33 @@ jobs:
         run: |
           docker save football-backend:amd64 football-frontend:amd64 -o images.tar
           cp infra/compose.yaml ./docker-compose.yml
-          cp infra/README-RUNTIME.txt . 2>/dev/null || true
-          tar czf webdev-football-amd64.tar.gz images.tar docker-compose.yml football-demo.sqlite
+          cat > README-RUNTIME.txt << 'EOF'
+          ================================================================================
+            世界杯/苏超赛事信息与互动预测平台 — X64 运行产物包
+          ================================================================================
+
+          包含文件：
+            images.tar            两个 Docker 镜像（football-backend:amd64 / football-frontend:amd64）
+            docker-compose.yml    一键启动编排（端口 3000 / 7001，含健康检查与数据卷）
+            football-demo.sqlite  预置演示数据的数据库（12 球队 / 40 比赛 / 积分榜 / 淘汰赛图）
+
+          前置要求：Docker Engine（支持 linux/amd64）
+
+          【启动步骤】
+            1) tar xzf webdev-football-amd64.tar.gz
+            2) docker load -i images.tar
+            3) docker compose -f docker-compose.yml up -d
+            4) 访问 http://localhost:3000
+
+          【健康检查】
+            后端：http://localhost:7001/api/health
+            前端：http://localhost:3000/api/health
+
+          【停止】
+            docker compose -f docker-compose.yml down
+          ================================================================================
+          EOF
+          tar czf webdev-football-amd64.tar.gz images.tar docker-compose.yml football-demo.sqlite README-RUNTIME.txt
           ls -lh webdev-football-amd64.tar.gz
 
       - name: Upload artifact
