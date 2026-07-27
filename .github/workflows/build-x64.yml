@@ -1,0 +1,59 @@
+name: Build X64 Runtime Artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/backend.Dockerfile
+          platforms: linux/amd64
+          tags: football-backend:amd64
+          load: true
+
+      - name: Build frontend image (linux/amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/frontend.Dockerfile
+          platforms: linux/amd64
+          tags: football-frontend:amd64
+          load: true
+
+      - name: Generate demo database
+        run: |
+          docker run -d --name seed-tmp football-backend:amd64
+          for i in $(seq 1 40); do
+            if docker exec seed-tmp node -e "fetch('http://localhost:7001/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          docker cp seed-tmp:/app/backend/data/football.sqlite football-demo.sqlite
+          docker rm -f seed-tmp
+
+      - name: Package artifact
+        run: |
+          docker save football-backend:amd64 football-frontend:amd64 -o images.tar
+          cp infra/compose.yaml ./docker-compose.yml
+          cp infra/README-RUNTIME.txt . 2>/dev/null || true
+          tar czf webdev-football-amd64.tar.gz images.tar docker-compose.yml football-demo.sqlite
+          ls -lh webdev-football-amd64.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webdev-football-amd64
+          path: webdev-football-amd64.tar.gz
